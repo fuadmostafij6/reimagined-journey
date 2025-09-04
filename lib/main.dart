@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'pages/youtube_search_page.dart';
 import 'pages/live_tv_page.dart';
 
@@ -11,14 +12,86 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6750A4)),
+    final baseSeed = const Color(0xFF6750A4);
+
+    final lightTheme = ThemeData(
       useMaterial3: true,
-      fontFamily: 'Roboto',
+      colorScheme: ColorScheme.fromSeed(seedColor: baseSeed, brightness: Brightness.light),
+      textTheme: GoogleFonts.notoSansTextTheme(),
+      scaffoldBackgroundColor: const Color(0xFFF7F7FA),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1F1B2E),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: Colors.black.withOpacity(0.06),
+        selectedColor: const Color(0xFF2962FF),
+        labelStyle: const TextStyle(color: Colors.white),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF000000).withOpacity(0.05),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
+
+    final darkScheme = ColorScheme.fromSeed(seedColor: baseSeed, brightness: Brightness.dark);
+    final darkTheme = ThemeData(
+      useMaterial3: true,
+      colorScheme: darkScheme,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: Colors.black,
+      textTheme: GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1F1B2E),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: darkScheme.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: Colors.white.withOpacity(0.08),
+        selectedColor: const Color(0xFF2962FF),
+        labelStyle: const TextStyle(color: Colors.white),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.08),
+        hintStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF2962FF), width: 2),
+        ),
+      ),
+      dividerColor: Colors.white.withOpacity(0.12),
+    );
+
     return MaterialApp(
       title: 'TV & YouTube',
-      theme: theme,
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.dark,
       home: const RootScaffold(),
       debugShowCheckedModeBanner: false,
     );
@@ -43,19 +116,7 @@ class _RootScaffoldState extends State<RootScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: Text(_index == 0 ? 'YouTube Search' : 'Live TV'),
-      //   centerTitle: true,
-      // ),
-      body: _pages[_index],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (v) => setState(() => _index = v),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-          NavigationDestination(icon: Icon(Icons.live_tv), label: 'Live TV'),
-        ],
-      ),
+      body: _pages[1],
     );
   }
 }
