@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pages/youtube_search_page.dart';
 import 'pages/live_tv_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize Google Mobile Ads SDK
+  await MobileAds.instance.initialize();
+  // Optional: mark this as a test device configuration in debug
+  await MobileAds.instance.updateRequestConfiguration(
+    RequestConfiguration(testDeviceIds: <String>[]),
+  );
   runApp(const MyApp());
 }
 

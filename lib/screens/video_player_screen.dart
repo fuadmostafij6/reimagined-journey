@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../pages/live_tv_page.dart';
 
 const MethodChannel _pipChannel = MethodChannel('app.pip');
@@ -31,11 +32,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _controlsVisible = false;
   Timer? _hideTimer;
   bool _isFullscreen = false;
+  
+  // Ads
+  BannerAd? _topBannerAd;
+  BannerAd? _bottomBannerAd;
+  bool _topLoaded = false;
+  bool _bottomLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _initAds();
   }
 
   void _scheduleAutoHide() {
@@ -213,6 +221,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void dispose() {
     _hideTimer?.cancel();
     _controller?.dispose();
+    _topBannerAd?.dispose();
+    _bottomBannerAd?.dispose();
     if (_isFullscreen) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setPreferredOrientations([
@@ -223,49 +233,93 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     super.dispose();
   }
 
+  void _initAds() {
+    const liveBannerId = 'ca-app-pub-5424945971440593/2553218866';
+    const testBannerId = 'ca-app-pub-3940256099942544/6300978111';
+    const bannerUnitId = bool.fromEnvironment('dart.vm.product') ? liveBannerId : testBannerId;
+    final listener = BannerAdListener(
+      onAdLoaded: (ad) {
+        if (!mounted) return;
+        setState(() {
+          if (ad == _topBannerAd) _topLoaded = true;
+          if (ad == _bottomBannerAd) _bottomLoaded = true;
+        });
+      },
+      onAdFailedToLoad: (ad, error) {
+        // Log error for debugging
+        // ignore: avoid_print
+        print('Banner failed to load: $error');
+        ad.dispose();
+      },
+    );
+    _topBannerAd = BannerAd(
+      adUnitId: bannerUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: listener,
+    )..load();
+    _bottomBannerAd = BannerAd(
+      adUnitId: bannerUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: listener,
+    )..load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Colors.black87,
-        foregroundColor: Colors.white,
-        actions: [
-          if (widget.channel != null)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                switch (value) {
-                  case 'info':
-                    _showChannelInfo();
-                    break;
-                  case 'test':
-                    _testStream();
-                    break;
-                  case 'refresh':
-                    _refreshVideo();
-                    break;
-                }
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'refresh',
-                  child: Row(
-                    children: [
-                      Icon(Icons.refresh),
-                      SizedBox(width: 8),
-                      Text('Refresh'),
+      appBar: _isFullscreen
+          ? null
+          : AppBar(
+              title: Text(widget.title),
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+              actions: [
+                if (widget.channel != null)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'info':
+                          _showChannelInfo();
+                          break;
+                        case 'test':
+                          _testStream();
+                          break;
+                        case 'refresh':
+                          _refreshVideo();
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'refresh',
+                        child: Row(
+                          children: [
+                            Icon(Icons.refresh),
+                            SizedBox(width: 8),
+                            Text('Refresh'),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
               ],
             ),
-        ],
-      ),
       body: Container(
         color: Colors.black,
-        child: Center(
-          child: _error
+        child: Column(
+          children: [
+            if (!_isFullscreen && _topLoaded && _topBannerAd != null)
+              SizedBox(
+                width: _topBannerAd!.size.width.toDouble(),
+                height: _topBannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _topBannerAd!),
+              ),
+            Expanded(
+              child: Center(
+        child: _error
               ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -299,7 +353,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     ),
                   ],
                 )
-              : (_controller == null || !_controller!.value.isInitialized)
+            : (_controller == null || !_controller!.value.isInitialized)
                   ? const Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -311,10 +365,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         ),
                       ],
                     )
-                  : AspectRatio(
-                      aspectRatio: _controller!.value.aspectRatio == 0
-                          ? 16 / 9
-                          : _controller!.value.aspectRatio,
+                : AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio == 0
+                        ? 16 / 9
+                        : _controller!.value.aspectRatio,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           return GestureDetector(
@@ -325,10 +379,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                               final isLeft = dx < constraints.maxWidth / 2;
                               _seekRelative(Duration(seconds: isLeft ? -10 : 10));
                             },
-                            child: Stack(
-                              alignment: Alignment.bottomCenter,
-                              children: [
-                                VideoPlayer(_controller!),
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                                // Fill entire screen in fullscreen using BoxFit.cover to remove side gaps
+                                _isFullscreen
+                                    ? SizedBox.expand(
+                                        child: FittedBox(
+                                          fit: BoxFit.cover,
+                                          child: SizedBox(
+                                            width: _controller!.value.size.width,
+                                            height: _controller!.value.size.height,
+                                            child: VideoPlayer(_controller!),
+                                          ),
+                                        ),
+                                      )
+                                    : VideoPlayer(_controller!),
 
                                 // Controls overlay
                                 AnimatedOpacity(
@@ -431,6 +497,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         },
                       ),
                     ),
+              ),
+            ),
+            if (!_isFullscreen && _bottomLoaded && _bottomBannerAd != null)
+              SizedBox(
+                width: _bottomBannerAd!.size.width.toDouble(),
+                height: _bottomBannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bottomBannerAd!),
+              ),
+          ],
         ),
       ),
     );
@@ -546,7 +621,7 @@ class _InfoRow extends StatelessWidget {
   final String value;
   
   const _InfoRow(this.label, this.value);
-  
+
   @override
   Widget build(BuildContext context) {
     return Padding(
