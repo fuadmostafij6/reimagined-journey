@@ -59,7 +59,9 @@ import AVKit
 
     if AVPictureInPictureController.isPictureInPictureSupported(), let layer = pipLayer {
       pipController = AVPictureInPictureController(playerLayer: layer)
-      pipController?.canStartPictureInPictureAutomaticallyFromInline = true
+      if #available(iOS 14.2, *) {
+        pipController?.canStartPictureInPictureAutomaticallyFromInline = true
+      }
       pipPlayer?.play()
       pipController?.startPictureInPicture()
     }
