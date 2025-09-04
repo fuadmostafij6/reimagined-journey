@@ -43,10 +43,10 @@ class _RootScaffoldState extends State<RootScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_index == 0 ? 'YouTube Search' : 'Live TV'),
-        centerTitle: true,
-      ),
+      // appBar: AppBar(
+      //   title: Text(_index == 0 ? 'YouTube Search' : 'Live TV'),
+      //   centerTitle: true,
+      // ),
       body: _pages[_index],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
