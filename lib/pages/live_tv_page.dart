@@ -17,6 +17,8 @@ class _LiveTvPageState extends State<LiveTvPage> {
   String _selectedCategory = 'All';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _categoryScrollController = ScrollController();
+  final Map<String, GlobalKey> _categoryKeys = {};
 
   @override
   void initState() {
@@ -27,6 +29,7 @@ class _LiveTvPageState extends State<LiveTvPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _categoryScrollController.dispose();
     super.dispose();
   }
 
@@ -191,52 +194,47 @@ class _LiveTvPageState extends State<LiveTvPage> {
 
           return CustomScrollView(
             slivers: [
-              // Sticky header with search and categories
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StickyHeaderDelegate(
-                  minHeight: 84,
-                  maxHeight: 84,
-                  child: Container(
-                    color: Colors.black,
-                    padding: const EdgeInsets.all(16),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Search channels...',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white70),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _searchQuery = '';
-                                  });
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.1),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.blue, width: 2),
-                        ),
+              // Search bar (scrollable)
+              SliverToBoxAdapter(
+                child: Container(
+                  color: Colors.black,
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search channels...',
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.white70),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.blue, width: 2),
                       ),
                     ),
                   ),
@@ -247,8 +245,8 @@ class _LiveTvPageState extends State<LiveTvPage> {
               SliverPersistentHeader(
                 pinned: true,
                 delegate: _StickyHeaderDelegate(
-                  minHeight: 128,
-                  maxHeight: 160,
+                  minHeight: 130,
+                  maxHeight: 130,
                   child: Container(
                     color: Colors.black,
                     child: Container(
@@ -324,6 +322,7 @@ class _LiveTvPageState extends State<LiveTvPage> {
                             height: 48,
                             child: categories.length > 1
                                 ? ListView.separated(
+                                    controller: _categoryScrollController,
                                     scrollDirection: Axis.horizontal,
                                     itemCount: categories.length,
                                     separatorBuilder: (_, __) => const SizedBox(width: 12),
@@ -331,59 +330,79 @@ class _LiveTvPageState extends State<LiveTvPage> {
                                       final cat = categories[index];
                                       final selected = cat == _selectedCategory;
                                       final isAll = cat == 'All';
-                                      return AnimatedContainer(
+                                      _categoryKeys.putIfAbsent(cat, () => GlobalKey());
+                                      return AnimatedOpacity(
+                                        key: _categoryKeys[cat],
                                         duration: const Duration(milliseconds: 200),
                                         curve: Curves.easeInOut,
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(24),
-                                            onTap: () {
-                                              setState(() => _selectedCategory = cat);
-                                            },
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                              decoration: BoxDecoration(
-                                                gradient: selected
-                                                    ? const LinearGradient(
-                                                        colors: [Colors.blue, Colors.blueAccent],
-                                                        begin: Alignment.topLeft,
-                                                        end: Alignment.bottomRight,
-                                                      )
-                                                    : null,
-                                                color: selected ? null : Colors.white.withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(24),
-                                                border: selected
-                                                    ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
-                                                    : Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                                                boxShadow: selected
-                                                    ? [
-                                                        BoxShadow(
-                                                          color: Colors.blue.withOpacity(0.3),
-                                                          blurRadius: 8,
-                                                          offset: const Offset(0, 2),
-                                                        ),
-                                                      ]
-                                                    : null,
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    isAll ? Icons.all_inclusive : Icons.tv,
-                                                    color: selected ? Colors.white : Colors.white70,
-                                                    size: 16,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    cat,
-                                                    style: TextStyle(
+                                        opacity: selected ? 1.0 : 0.85,
+                                        child: AnimatedScale(
+                                          duration: const Duration(milliseconds: 200),
+                                          scale: selected ? 1.0 : 0.96,
+                                          curve: Curves.easeInOut,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell
+                                            (
+                                              borderRadius: BorderRadius.circular(24),
+                                              onTap: () {
+                                                setState(() => _selectedCategory = cat);
+                                                final key = _categoryKeys[cat];
+                                                if (key != null && key.currentContext != null) {
+                                                  Scrollable.ensureVisible(
+                                                    key.currentContext!,
+                                                    alignment: 0.3,
+                                                    duration: const Duration(milliseconds: 250),
+                                                    curve: Curves.easeOut,
+                                                  );
+                                                }
+                                              },
+                                              child: AnimatedContainer(
+                                                duration: const Duration(milliseconds: 200),
+                                                curve: Curves.easeInOut,
+                                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                                decoration: BoxDecoration(
+                                                  gradient: selected
+                                                      ? const LinearGradient(
+                                                          colors: [Colors.blue, Colors.blueAccent],
+                                                          begin: Alignment.topLeft,
+                                                          end: Alignment.bottomRight,
+                                                        )
+                                                      : null,
+                                                  color: selected ? null : Colors.white.withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(24),
+                                                  border: selected
+                                                      ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+                                                      : Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                                                  boxShadow: selected
+                                                      ? [
+                                                          BoxShadow(
+                                                            color: Colors.blue.withOpacity(0.3),
+                                                            blurRadius: 8,
+                                                            offset: const Offset(0, 2),
+                                                          ),
+                                                        ]
+                                                      : null,
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      isAll ? Icons.all_inclusive : Icons.tv,
                                                       color: selected ? Colors.white : Colors.white70,
-                                                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                                                      fontSize: 14,
+                                                      size: 16,
                                                     ),
-                                                  ),
-                                                ],
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      cat,
+                                                      style: TextStyle(
+                                                        color: selected ? Colors.white : Colors.white70,
+                                                        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -435,21 +454,13 @@ class _LiveTvPageState extends State<LiveTvPage> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        '${filteredItems.length} channels available',
+                        '${filteredItems.length} channels',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      if (_searchQuery.isNotEmpty)
-                        Text(
-                          ' (${items.length} total)',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
-                            fontSize: 13,
-                          ),
-                        ),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../pages/live_tv_page.dart';
+
+const MethodChannel _pipChannel = MethodChannel('app.pip');
 
 class VideoPlayerScreen extends StatefulWidget {
   final String title;
@@ -23,10 +27,79 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _error = false;
   String? _errorMessage;
 
+  // Controls state
+  bool _controlsVisible = false;
+  Timer? _hideTimer;
+  bool _isFullscreen = false;
+
   @override
   void initState() {
     super.initState();
     _init();
+  }
+
+  void _scheduleAutoHide() {
+    _hideTimer?.cancel();
+    if (!mounted) return;
+    if (_controller?.value.isPlaying == true) {
+      _hideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _controlsVisible = false);
+      });
+    }
+  }
+
+  void _toggleControls() {
+    setState(() {
+      _controlsVisible = !_controlsVisible;
+    });
+    if (_controlsVisible) _scheduleAutoHide();
+  }
+
+  Future<void> _seekRelative(Duration delta) async {
+    final current = await _controller?.position;
+    if (current == null) return;
+    var target = current + delta;
+    if (target < Duration.zero) target = Duration.zero;
+    await _controller?.seekTo(target);
+  }
+
+  Future<void> _toggleFullscreen() async {
+    _isFullscreen = !_isFullscreen;
+    if (_isFullscreen) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _enterPip() async {
+    try {
+      if (Theme.of(context).platform == TargetPlatform.android) {
+        await _pipChannel.invokeMethod('enterPip');
+      } else if (Theme.of(context).platform == TargetPlatform.iOS) {
+        await _pipChannel.invokeMethod('enterPip', {
+          'url': widget.url,
+          'headers': _getCustomHeaders(),
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PiP supported only on Android/iOS in this build')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PiP failed: $e')),
+      );
+    }
   }
 
   Map<String, String> _getCookies() {
@@ -58,16 +131,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _init() async {
     try {
-      // Create video player controller with custom headers if needed
       final ctrl = VideoPlayerController.networkUrl(
         Uri.parse(widget.url),
         httpHeaders: _getCustomHeaders(),
       );
-      
       _controller = ctrl;
       await ctrl.initialize();
       await ctrl.play();
       setState(() {});
+      _scheduleAutoHide();
     } catch (e) {
       setState(() {
         _error = true;
@@ -77,7 +149,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Map<String, String> _getCustomHeaders() {
-    // Add custom headers based on channel metadata if needed
     final headers = <String, String>{
       'Accept': '*/*',
       'Accept-Language': 'en-US,en;q=0.9',
@@ -89,19 +160,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       'Sec-Fetch-Site': 'cross-site',
     };
 
-    // Use channel-specific user agent if available, otherwise use default
     if (widget.channel?.userAgent.isNotEmpty == true) {
       headers['User-Agent'] = widget.channel!.userAgent;
     } else {
       headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
     }
 
-    // Add referer if available from channel metadata
     if (widget.channel?.tvgId.isNotEmpty == true) {
       headers['Referer'] = 'https://raw.githubusercontent.com/fuadmostafij6/super-garbanzo/refs/heads/main/merge.json';
     }
 
-    // Add origin header for CORS based on stream URL
     if (widget.url.contains('merichunidya.com')) {
       headers['Origin'] = 'https://merichunidya.com';
     } else if (widget.url.contains('aynaott.com')) {
@@ -110,14 +178,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       headers['Origin'] = 'https://toffeelive.com';
     }
 
-    // Add specific headers for different stream types
     if (widget.url.endsWith('.m3u8')) {
       headers['Accept'] = 'application/vnd.apple.mpegurl, application/x-mpegURL, application/vnd.apple.mpegurl.audio';
     } else if (widget.url.endsWith('.mpd')) {
       headers['Accept'] = 'application/dash+xml,video/vnd.mpeg.dash.mpd';
     }
 
-    // Add cookies as headers if available
     final cookies = _getCookies();
     if (cookies.isNotEmpty) {
       final cookieHeader = cookies.entries
@@ -145,7 +211,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
     _controller?.dispose();
+    if (_isFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
     super.dispose();
   }
 
@@ -173,18 +247,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     break;
                 }
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'info',
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline),
-                      SizedBox(width: 8),
-                      Text('Channel Info'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
+              itemBuilder: (context) => const [
+                PopupMenuItem(
                   value: 'refresh',
                   child: Row(
                     children: [
@@ -251,13 +315,120 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       aspectRatio: _controller!.value.aspectRatio == 0
                           ? 16 / 9
                           : _controller!.value.aspectRatio,
-                      child: Stack(
-                        alignment: Alignment.bottomCenter,
-                        children: [
-                          VideoPlayer(_controller!),
-                          _ControlsOverlay(controller: _controller!),
-                          VideoProgressIndicator(_controller!, allowScrubbing: true),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _toggleControls,
+                            onDoubleTapDown: (details) {
+                              final dx = details.localPosition.dx;
+                              final isLeft = dx < constraints.maxWidth / 2;
+                              _seekRelative(Duration(seconds: isLeft ? -10 : 10));
+                            },
+                            child: Stack(
+                              alignment: Alignment.bottomCenter,
+                              children: [
+                                VideoPlayer(_controller!),
+
+                                // Controls overlay
+                                AnimatedOpacity(
+                                  opacity: _controlsVisible ? 1 : 0,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: IgnorePointer(
+                                    ignoring: !_controlsVisible,
+                                    child: Container(
+                                      color: Colors.black26,
+                                      child: Stack(
+                                        children: [
+                                          // Center play/pause
+                                          Center(
+                                            child: IconButton(
+                                              iconSize: 64,
+                                              color: Colors.white,
+                                              icon: Icon(
+                                                _controller!.value.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                                              ),
+                                              onPressed: () async {
+                                                if (_controller!.value.isPlaying) {
+                                                  await _controller!.pause();
+                                                } else {
+                                                  await _controller!.play();
+                                                }
+                                                setState(() {});
+                                                _scheduleAutoHide();
+                                              },
+                                            ),
+                                          ),
+
+                                          // Top-right quick actions
+                                          Positioned(
+                                            right: 8,
+                                            top: 8,
+                                            child: Row(
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white),
+                                                  onPressed: _enterPip,
+                                                  tooltip: 'PiP',
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                                                    color: Colors.white,
+                                                  ),
+                                                  onPressed: _toggleFullscreen,
+                                                  tooltip: _isFullscreen ? 'Exit full screen' : 'Full screen',
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          // Bottom progress (only when controls shown)
+                                          Positioned(
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                              child: VideoProgressIndicator(
+                                                _controller!,
+                                                allowScrubbing: true,
+                                                padding: EdgeInsets.zero,
+                                                colors: VideoProgressColors(
+                                                  playedColor: Colors.blueAccent,
+                                                  bufferedColor: Colors.white38,
+                                                  backgroundColor: Colors.white24,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+
+                                          // Left and right double-tap overlays (visual hints)
+                                          if (_controlsVisible) ...[
+                                            Positioned(
+                                              left: 16,
+                                              bottom: 56,
+                                              child: _SeekHint(seconds: -10),
+                                            ),
+                                            Positioned(
+                                              right: 16,
+                                              bottom: 56,
+                                              child: _SeekHint(seconds: 10),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // Always keep minimal progress bar hidden when controls hidden
+                                if (!_controlsVisible)
+                                  const SizedBox.shrink(),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
         ),
@@ -319,7 +490,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       final headers = _getCustomHeaders();
       print('Testing stream with headers: $headers');
       
-      // Show testing dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -333,13 +503,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           ),
         ),
       );
-      
-      // Simulate a test request (in a real app, you'd make an HTTP request)
       await Future.delayed(const Duration(seconds: 2));
-      
-      Navigator.of(context).pop(); // Close testing dialog
-      
-      // Show test results
+      Navigator.of(context).pop();
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -357,8 +522,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               Text('Referer: ${headers['Referer'] ?? 'None'}'),
               const SizedBox(height: 8),
               Text('Origin: ${headers['Origin'] ?? 'None'}'),
-              const SizedBox(height: 8),
-              const Text('Note: This is a header test. For full validation, use the M3u8Validator utility.'),
             ],
           ),
           actions: [
@@ -370,7 +533,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         ),
       );
     } catch (e) {
-      Navigator.of(context).pop(); // Close testing dialog
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Test error: $e')),
       );
@@ -410,52 +573,26 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _ControlsOverlay extends StatelessWidget {
-  final VideoPlayerController controller;
-  const _ControlsOverlay({required this.controller});
+class _SeekHint extends StatelessWidget {
+  final int seconds; // negative for rewind
+  const _SeekHint({required this.seconds});
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 150),
-          child: controller.value.isPlaying
-              ? const SizedBox.shrink()
-              : Container(
-                  color: Colors.black26,
-                  child: const Center(
-                    child: Icon(
-                      Icons.play_arrow,
-                      color: Colors.white,
-                      size: 80,
-                    ),
-                  ),
-                ),
-        ),
-        GestureDetector(
-          onTap: () {
-            if (controller.value.isPlaying) {
-              controller.pause();
-            } else {
-              controller.play();
-            }
-          },
-        ),
-        Positioned(
-          right: 12,
-          top: 12,
-          child: IconButton(
-            icon: const Icon(Icons.replay_10, color: Colors.white),
-            onPressed: () async {
-              final current = await controller.position;
-              if (current != null) {
-                await controller.seekTo(current - const Duration(seconds: 10));
-              }
-            },
-          ),
-        ),
-      ],
+    final isForward = seconds > 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(isForward ? Icons.forward_10 : Icons.replay_10, color: Colors.white, size: 18),
+          const SizedBox(width: 6),
+          Text('${seconds.abs()}s', style: const TextStyle(color: Colors.white)),
+        ],
+      ),
     );
   }
 }
