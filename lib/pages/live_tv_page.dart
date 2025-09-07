@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
-import '../screens/video_player_screen.dart';
+import '../screens/modern_video_player_screen.dart';
 
 class LiveTvPage extends StatefulWidget {
   const LiveTvPage({super.key});
@@ -89,12 +89,13 @@ class _LiveTvPageState extends State<LiveTvPage> {
     }
   }
 
-  void _playChannel(Channel c) {
+  void _playChannel(Channel c, List<Channel> allChannels) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => VideoPlayerScreen(
+      builder: (_) => ModernVideoPlayerScreen(
         title: c.title, 
         url: c.url,
         channel: c,
+        relatedChannels: allChannels,
       ),
     ));
   }
@@ -505,7 +506,7 @@ class _LiveTvPageState extends State<LiveTvPage> {
                       final v = filteredItems[index];
                       return _ChannelCard(
                         channel: v,
-                        onTap: () => _playChannel(v),
+                        onTap: () => _playChannel(v, allItems),
                         isFavorite: false, // For now, no favorites functionality
                         onFavoriteToggle: () {}, // Empty callback for now
                       );
