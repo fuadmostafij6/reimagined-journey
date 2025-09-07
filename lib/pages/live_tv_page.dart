@@ -96,7 +96,7 @@ class _LiveTvPageState extends State<LiveTvPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Live TV Channels'),
+        title: const Text('onAir - Live TV'),
         backgroundColor: const Color(0xFF1F1B2E),
         foregroundColor: Colors.white,
         actions: [

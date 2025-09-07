@@ -1,4 +1,4 @@
-package com.example.tv_app
+package com.onair.app
 
 import android.app.PictureInPictureParams
 import android.os.Build

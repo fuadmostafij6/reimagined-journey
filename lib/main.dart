@@ -97,7 +97,7 @@ class MyApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'TV & YouTube',
+      title: 'onAir',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.dark,
