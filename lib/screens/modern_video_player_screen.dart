@@ -488,6 +488,19 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
                                                     ),
                                                   ),
 
+                                                  // Top-left back button (only in fullscreen)
+                                                  if (_isFullscreen)
+                                                    Positioned(
+                                                      left: 16,
+                                                      top: 16,
+                                                      child: _ModernControlButton(
+                                                        icon: Icons.arrow_back,
+                                                        onTap: () {
+                                                          Navigator.of(context).pop();
+                                                        },
+                                                      ),
+                                                    ),
+
                                                   // Top-right controls
                                                   Positioned(
                                                     right: 16,

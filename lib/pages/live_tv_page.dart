@@ -14,11 +14,8 @@ class LiveTvPage extends StatefulWidget {
 class _LiveTvPageState extends State<LiveTvPage> {
   late Future<List<Channel>> _future;
   String? _error;
-  String _selectedCategory = 'All';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _categoryScrollController = ScrollController();
-  final Map<String, GlobalKey> _categoryKeys = {};
 
   @override
   void initState() {
@@ -29,7 +26,6 @@ class _LiveTvPageState extends State<LiveTvPage> {
   @override
   void dispose() {
     _searchController.dispose();
-    _categoryScrollController.dispose();
     super.dispose();
   }
 
@@ -51,11 +47,6 @@ class _LiveTvPageState extends State<LiveTvPage> {
         final body = utf8.decode(res.bodyBytes);
         final dynamic decoded = json.decode(body);
         if (decoded is List) {
-          // Debug: Print sample data
-          if (decoded.isNotEmpty) {
-            print('Sample JSON item: ${decoded.first}');
-            print('Sample category: ${decoded.first['category']}');
-          }
           
           merged.addAll(decoded
               .map((e) => Channel(
@@ -169,264 +160,68 @@ class _LiveTvPageState extends State<LiveTvPage> {
             );
           }
           
-          // Extract all unique categories from the data
-          final Set<String> uniqueCategories = {};
-          for (final channel in allItems) {
-            final category = channel.category.trim();
-            if (category.isNotEmpty) {
-              uniqueCategories.add(category);
-            }
-          }
-          
-          // Convert to sorted list and add 'All' option
-          final categories = ['All', ...uniqueCategories.toList()..sort()];
-          
-          // Debug: Print categories to console
-          print('Found ${categories.length - 1} categories: ${categories.skip(1).join(', ')}');
-          
-          final items = _selectedCategory == 'All'
-              ? allItems
-              : allItems.where((c) => c.category.trim() == _selectedCategory).toList();
-
           // Apply search filter
           final filteredItems = _searchQuery.isEmpty
-              ? items
-              : items.where((c) => c.title.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+              ? allItems
+              : allItems.where((c) => c.title.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
           return CustomScrollView(
             slivers: [
-              // Search bar (scrollable)
-              SliverToBoxAdapter(
-                child: Container(
-                  color: Colors.black,
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search channels...',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                      prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.white70),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {
-                                  _searchQuery = '';
-                                });
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.blue, width: 2),
+              // Pinned search bar
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SearchBarDelegate(
+                  minHeight: 80,
+                  maxHeight: 80,
+                  child: Container(
+                    color: Colors.black,
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      controller: _searchController,
+                      onTapOutside: (value) {
+                        FocusScope.of(context).unfocus();
+                      },
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Search channels...',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.white70),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.1),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.blue, width: 2),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
 
-              // Sticky header: categories section
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StickyHeaderDelegate(
-                  minHeight: 130,
-                  maxHeight: 130,
-                  child: Container(
-                    color: Colors.black,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF2B2250),
-                            const Color(0xFF1F1B2E),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.category,
-                                  color: Colors.blue,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Text(
-                                'Categories',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const Spacer(),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '${categories.length - 1} categories',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  if (categories.length > 1)
-                                    Text(
-                                      '${allItems.length} total channels',
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.5),
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 48,
-                            child: categories.length > 1
-                                ? ListView.separated(
-                                    controller: _categoryScrollController,
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: categories.length,
-                                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                                    itemBuilder: (context, index) {
-                                      final cat = categories[index];
-                                      final selected = cat == _selectedCategory;
-                                      final isAll = cat == 'All';
-                                      _categoryKeys.putIfAbsent(cat, () => GlobalKey());
-                                      return AnimatedOpacity(
-                                        key: _categoryKeys[cat],
-                                        duration: const Duration(milliseconds: 200),
-                                        curve: Curves.easeInOut,
-                                        opacity: selected ? 1.0 : 0.85,
-                                        child: AnimatedScale(
-                                          duration: const Duration(milliseconds: 200),
-                                          scale: selected ? 1.0 : 0.96,
-                                          curve: Curves.easeInOut,
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: InkWell
-                                            (
-                                              borderRadius: BorderRadius.circular(24),
-                                              onTap: () {
-                                                setState(() => _selectedCategory = cat);
-                                                final key = _categoryKeys[cat];
-                                                if (key != null && key.currentContext != null) {
-                                                  Scrollable.ensureVisible(
-                                                    key.currentContext!,
-                                                    alignment: 0.3,
-                                                    duration: const Duration(milliseconds: 250),
-                                                    curve: Curves.easeOut,
-                                                  );
-                                                }
-                                              },
-                                              child: AnimatedContainer(
-                                                duration: const Duration(milliseconds: 200),
-                                                curve: Curves.easeInOut,
-                                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                                decoration: BoxDecoration(
-                                                  gradient: selected
-                                                      ? const LinearGradient(
-                                                          colors: [Colors.blue, Colors.blueAccent],
-                                                          begin: Alignment.topLeft,
-                                                          end: Alignment.bottomRight,
-                                                        )
-                                                      : null,
-                                                  color: selected ? null : Colors.white.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(24),
-                                                  border: selected
-                                                      ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
-                                                      : Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                                                  boxShadow: selected
-                                                      ? [
-                                                          BoxShadow(
-                                                            color: Colors.blue.withOpacity(0.3),
-                                                            blurRadius: 8,
-                                                            offset: const Offset(0, 2),
-                                                          ),
-                                                        ]
-                                                      : null,
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      isAll ? Icons.all_inclusive : Icons.tv,
-                                                      color: selected ? Colors.white : Colors.white70,
-                                                      size: 16,
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      cat,
-                                                      style: TextStyle(
-                                                        color: selected ? Colors.white : Colors.white70,
-                                                        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  )
-                                : Center(
-                                    child: Text(
-                                      'Loading categories...',
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.7),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
               
               // Channel count info
               SliverToBoxAdapter(
@@ -460,30 +255,6 @@ class _LiveTvPageState extends State<LiveTvPage> {
                           color: Colors.white,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _selectedCategory == 'All' 
-                              ? Colors.blue.withOpacity(0.2)
-                              : Colors.orange.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _selectedCategory == 'All' 
-                                ? Colors.blue.withOpacity(0.3)
-                                : Colors.orange.withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          _selectedCategory == 'All' ? 'All Categories' : _selectedCategory,
-                          style: TextStyle(
-                            color: _selectedCategory == 'All' ? Colors.blue : Colors.orange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
                         ),
                       ),
                     ],
@@ -688,39 +459,6 @@ class _ChannelCard extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              SizedBox(
-                height: 2,
-              ),
-
-              Align(
-                alignment: AlignmentDirectional.bottomEnd,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blue.withOpacity(0.3),
-                        Colors.blueAccent.withOpacity(0.3),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.blue.withOpacity(0.4),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    channel.category.isEmpty ? 'Unknown' : channel.category,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -729,12 +467,12 @@ class _ChannelCard extends StatelessWidget {
   }
 }
 
-class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
+class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   final double minHeight;
   final double maxHeight;
   final Widget child;
 
-  _StickyHeaderDelegate({
+  _SearchBarDelegate({
     required this.minHeight,
     required this.maxHeight,
     required this.child,
@@ -743,7 +481,19 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return SizedBox.expand(child: child);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
   }
 
   @override
@@ -753,7 +503,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => minHeight;
 
   @override
-  bool shouldRebuild(_StickyHeaderDelegate oldDelegate) {
+  bool shouldRebuild(_SearchBarDelegate oldDelegate) {
     return maxHeight != oldDelegate.maxHeight ||
         minHeight != oldDelegate.minHeight ||
         child != oldDelegate.child;
