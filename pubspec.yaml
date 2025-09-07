@@ -46,6 +46,7 @@ dependencies:
   url_launcher: ^6.3.2
   android_intent_plus: ^5.3.1
   device_info_plus: ^11.5.0
+  screen_brightness: ^2.1.7
 
 dev_dependencies:
   flutter_test:

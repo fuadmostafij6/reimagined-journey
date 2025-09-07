@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:http/http.dart' as http;
+import 'package:screen_brightness/screen_brightness.dart';
 import '../pages/live_tv_page.dart';
 
 const MethodChannel _pipChannel = MethodChannel('app.pip');
@@ -48,12 +49,29 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
   List<Channel> _relatedChannels = [];
   int _currentChannelIndex = 0;
 
+  // Volume and brightness control
+  double _currentBrightness = 0.5;
+  double _currentVolume = 0.5;
+  bool _showVolumeIndicator = false;
+  bool _showBrightnessIndicator = false;
+  Timer? _indicatorTimer;
+
   @override
   void initState() {
     super.initState();
     _init();
     _initAds();
     _loadRelatedChannels();
+    _initBrightness();
+  }
+
+  void _initBrightness() async {
+    try {
+      _currentBrightness = await ScreenBrightness().application;
+    } catch (e) {
+      print('Error getting current brightness: $e');
+      _currentBrightness = 0.5; // Default fallback
+    }
   }
 
   void _loadRelatedChannels() async {
@@ -140,6 +158,62 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
       ]);
     }
     if (mounted) setState(() {});
+  }
+
+  // Volume and brightness control methods
+  void _adjustVolume(double delta) async {
+    _currentVolume = (_currentVolume + delta).clamp(0.0, 1.0);
+    
+    // Use system volume control
+    try {
+      await SystemSound.play(SystemSoundType.click);
+    } catch (e) {
+      // Fallback if system sound doesn't work
+    }
+    
+    setState(() {
+      _showVolumeIndicator = true;
+    });
+    
+    _scheduleIndicatorHide();
+  }
+
+  void _adjustBrightness(double delta) async {
+    _currentBrightness = (_currentBrightness + delta).clamp(0.0, 1.0);
+    
+    try {
+      await ScreenBrightness().setApplicationScreenBrightness(_currentBrightness);
+    } catch (e) {
+      print('Error setting brightness: $e');
+    }
+    
+    setState(() {
+      _showBrightnessIndicator = true;
+    });
+    
+    _scheduleIndicatorHide();
+  }
+
+  void _scheduleIndicatorHide() {
+    _indicatorTimer?.cancel();
+    _indicatorTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _showVolumeIndicator = false;
+          _showBrightnessIndicator = false;
+        });
+      }
+    });
+  }
+
+  void _onVerticalDrag(DragUpdateDetails details, bool isLeftSide) {
+    final delta = -details.delta.dy / 200.0; // Sensitivity adjustment
+    
+    if (isLeftSide) {
+      _adjustBrightness(delta);
+    } else {
+      _adjustVolume(delta);
+    }
   }
 
   void _enterPip() async {
@@ -297,6 +371,7 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _indicatorTimer?.cancel();
     _controller?.dispose();
     _topBannerAd?.dispose();
     _bottomBannerAd?.dispose();
@@ -346,6 +421,25 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: Colors.black,
+        appBar: _isFullscreen ? null : AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Text(
+            widget.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+          elevation: 0,
+        ),
         body: Container(
           color: Colors.black,
           child: Column(
@@ -368,17 +462,6 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                            if (_errorMessage != null) ...[
-                              const SizedBox(height: 8),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
-                                child: Text(
-                                  _errorMessage!,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(color: Colors.white70),
-                                ),
-                              ),
-                            ],
                             const SizedBox(height: 24),
                             ElevatedButton(
                               onPressed: _refreshVideo,
@@ -411,6 +494,11 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
                                       final dx = details.localPosition.dx;
                                       final isLeft = dx < constraints.maxWidth / 2;
                                       _seekRelative(Duration(seconds: isLeft ? -10 : 10));
+                                    },
+                                    onPanUpdate: (details) {
+                                      final dx = details.localPosition.dx;
+                                      final isLeft = dx < constraints.maxWidth / 2;
+                                      _onVerticalDrag(details, isLeft);
                                     },
                                     child: Stack(
                                       alignment: Alignment.bottomCenter,
@@ -548,14 +636,14 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
                                                             fontWeight: FontWeight.w600,
                                                           ),
                                                         ),
-                                                        const SizedBox(height: 4),
-                                                        Text(
-                                                          'Season 3 episode 6',
-                                                          style: TextStyle(
-                                                            color: Colors.white.withOpacity(0.8),
-                                                            fontSize: 14,
-                                                          ),
-                                                        ),
+                                                        // const SizedBox(height: 4),
+                                                        // Text(
+                                                        //   'Season 3 episode 6',
+                                                        //   style: TextStyle(
+                                                        //     color: Colors.white.withOpacity(0.8),
+                                                        //     fontSize: 14,
+                                                        //   ),
+                                                        // ),
                                                         const SizedBox(height: 16),
                                                         // Progress bar
                                                         _ModernProgressBar(
@@ -659,6 +747,118 @@ class _ModernVideoPlayerScreenState extends State<ModernVideoPlayerScreen> {
                                                     ),
                                                   ),
                                                 ],
+                                              ),
+                                            ),
+                                          ),
+
+                                        // Volume indicator (right side)
+                                        if (_showVolumeIndicator)
+                                          Positioned(
+                                            right: 30,
+                                            top: 0,
+                                            bottom: 0,
+                                            child: Center(
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withOpacity(0.8),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.volume_up,
+                                                      color: Colors.white,
+                                                      size: 24,
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Container(
+                                                      width: 4,
+                                                      height: 100,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white.withOpacity(0.3),
+                                                        borderRadius: BorderRadius.circular(2),
+                                                      ),
+                                                      child: Align(
+                                                        alignment: Alignment.bottomCenter,
+                                                        child: Container(
+                                                          width: 4,
+                                                          height: 100 * _currentVolume,
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.white,
+                                                            borderRadius: BorderRadius.circular(2),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      '${(_currentVolume * 100).round()}%',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+
+                                        // Brightness indicator (left side)
+                                        if (_showBrightnessIndicator)
+                                          Positioned(
+                                            left: 30,
+                                            top: 0,
+                                            bottom: 0,
+                                            child: Center(
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withOpacity(0.8),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.brightness_6,
+                                                      color: Colors.white,
+                                                      size: 24,
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Container(
+                                                      width: 4,
+                                                      height: 100,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white.withOpacity(0.3),
+                                                        borderRadius: BorderRadius.circular(2),
+                                                      ),
+                                                      child: Align(
+                                                        alignment: Alignment.bottomCenter,
+                                                        child: Container(
+                                                          width: 4,
+                                                          height: 100 * _currentBrightness,
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.white,
+                                                            borderRadius: BorderRadius.circular(2),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      '${(_currentBrightness * 100).round()}%',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           ),
