@@ -321,12 +321,15 @@ class _SplashScreenState extends State<SplashScreen>
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/app-update.apk');
 
+      // Get device-specific download URL
+      final downloadUrl = await _latestRelease!.getDeviceSpecificDownloadUrl();
+      
       // Debug: Print download URL
-      print('Downloading from: ${_latestRelease!.browserDownloadUrl}');
+      print('Downloading from: $downloadUrl');
 
       // Download the APK with timeout and better error handling
       final response = await http.get(
-        Uri.parse(_latestRelease!.browserDownloadUrl),
+        Uri.parse(downloadUrl),
         headers: {
           'Authorization': 'Bearer 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',
           'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
@@ -716,6 +719,111 @@ class GitHubRelease {
       browserDownloadUrl: apkAsset?.browserDownloadUrl ?? '',
       assets: assets,
     );
+  }
+
+  // Get device-specific APK download URL based on actual device architecture
+  Future<String> getDeviceSpecificDownloadUrl() async {
+    try {
+      // Get device architecture
+      final deviceArch = await _getDeviceArchitecture();
+      print('Detected device architecture: $deviceArch');
+      
+      // Try to find architecture-specific APK
+      try {
+        final specificAsset = assets.firstWhere((asset) => 
+          asset.name.contains(deviceArch) && asset.name.endsWith('.apk'));
+        print('Found specific APK: ${specificAsset.name}');
+        return specificAsset.browserDownloadUrl;
+      } catch (e) {
+        print('No specific APK found for $deviceArch, trying fallback order');
+        
+        // Fallback order based on device architecture
+        final fallbackOrder = _getFallbackOrder(deviceArch);
+        
+        for (String arch in fallbackOrder) {
+          try {
+            final fallbackAsset = assets.firstWhere((asset) => 
+              asset.name.contains(arch) && asset.name.endsWith('.apk'));
+            print('Using fallback APK: ${fallbackAsset.name}');
+            return fallbackAsset.browserDownloadUrl;
+          } catch (e) {
+            continue;
+          }
+        }
+        
+        // Final fallback to generic APK
+        print('Using generic APK as final fallback');
+        return browserDownloadUrl;
+      }
+    } catch (e) {
+      print('Error detecting architecture: $e');
+      return browserDownloadUrl;
+    }
+  }
+
+  // Detect actual device architecture
+  Future<String> _getDeviceArchitecture() async {
+    try {
+      if (Platform.isAndroid) {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+        
+        // Get supported ABIs (Application Binary Interfaces)
+        final supportedAbis = androidInfo.supportedAbis;
+        print('Supported ABIs: $supportedAbis');
+        
+        // Check for ARM64 first (most modern)
+        if (supportedAbis.contains('arm64-v8a')) {
+          return 'arm64-v8a';
+        }
+        
+        // Check for ARM32
+        if (supportedAbis.contains('armeabi-v7a')) {
+          return 'armeabi-v7a';
+        }
+        
+        // Check for x86_64 (emulators)
+        if (supportedAbis.contains('x86_64')) {
+          return 'x86_64';
+        }
+        
+        // Check for x86 (older emulators)
+        if (supportedAbis.contains('x86')) {
+          return 'x86';
+        }
+        
+        // Check for ARM (very old devices)
+        if (supportedAbis.contains('armeabi')) {
+          return 'armeabi';
+        }
+        
+        // Fallback to first supported ABI
+        if (supportedAbis.isNotEmpty) {
+          return supportedAbis.first;
+        }
+      }
+      
+      // Default fallback
+      return 'arm64-v8a';
+    } catch (e) {
+      print('Error getting device architecture: $e');
+      return 'arm64-v8a';
+    }
+  }
+
+  // Get fallback order based on detected architecture
+  List<String> _getFallbackOrder(String detectedArch) {
+    switch (detectedArch) {
+      case 'arm64-v8a':
+        return ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
+      case 'armeabi-v7a':
+        return ['armeabi-v7a', 'arm64-v8a', 'x86_64', 'x86'];
+      case 'x86_64':
+        return ['x86_64', 'x86', 'arm64-v8a', 'armeabi-v7a'];
+      case 'x86':
+        return ['x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'];
+      default:
+        return ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
+    }
   }
 }
 
