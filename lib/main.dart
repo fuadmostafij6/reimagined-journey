@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'pages/youtube_search_page.dart';
 import 'pages/live_tv_page.dart';
 import 'screens/splash_screen.dart';
+import 'providers/movie_channel_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,13 +98,18 @@ class MyApp extends StatelessWidget {
       dividerColor: Colors.white.withOpacity(0.12),
     );
 
-    return MaterialApp(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => MovieChannelProvider()..load()),
+      ],
+      child: MaterialApp(
       title: 'onAir',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.dark,
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
+    ),
     );
   }
 }
