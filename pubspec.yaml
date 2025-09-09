@@ -108,4 +108,8 @@ flutter_native_splash:
   android_12:
     image: assets/logo.png
     color: "#1F1B2E"
+    icon_background_color: "#1F1B2E"
+  android_gravity: center
+  ios_content_mode: center
+  fullscreen: true
   web: false

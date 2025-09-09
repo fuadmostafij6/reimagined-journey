@@ -5,16 +5,31 @@ import 'pages/youtube_search_page.dart';
 import 'pages/live_tv_page.dart';
 import 'screens/splash_screen.dart';
 import 'screens/fast_splash_screen.dart';
+import 'screens/instant_splash_screen.dart';
+import 'utils/performance_monitor.dart';
 
 void main() async {
+  // Start performance monitoring
+  PerformanceMonitor.startTiming('app_start');
+  
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Google Mobile Ads SDK
-  await MobileAds.instance.initialize();
-  // Optional: mark this as a test device configuration in debug
-  await MobileAds.instance.updateRequestConfiguration(
-    RequestConfiguration(testDeviceIds: <String>[]),
-  );
+  
+  // Initialize Google Mobile Ads SDK in background to avoid blocking startup
+  _initializeAdsInBackground();
+  
   runApp(const MyApp());
+}
+
+void _initializeAdsInBackground() async {
+  try {
+    await MobileAds.instance.initialize();
+    await MobileAds.instance.updateRequestConfiguration(
+      RequestConfiguration(testDeviceIds: <String>[]),
+    );
+  } catch (e) {
+    // Silently handle ads initialization errors
+    print('Ads initialization failed: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -102,7 +117,7 @@ class MyApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.dark,
-      home: const FastSplashScreen(), // Use FastSplashScreen for faster startup
+      home: const InstantSplashScreen(), // Use InstantSplashScreen for fastest startup
       debugShowCheckedModeBanner: false,
     );
   }

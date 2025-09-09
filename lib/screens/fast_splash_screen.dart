@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../pages/live_tv_page.dart';
 
@@ -22,6 +23,9 @@ class _FastSplashScreenState extends State<FastSplashScreen>
     super.initState();
     _initializeAnimations();
     _loadAppInfo();
+    
+    // Hide system UI for fullscreen experience
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   void _initializeAnimations() {
@@ -59,6 +63,9 @@ class _FastSplashScreenState extends State<FastSplashScreen>
 
   void _navigateToHome() {
     if (!mounted) return;
+    
+    // Restore system UI before navigation
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
