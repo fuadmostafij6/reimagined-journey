@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'pages/youtube_search_page.dart';
 import 'pages/live_tv_page.dart';
 import 'screens/splash_screen.dart';
+import 'screens/fast_splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -101,7 +102,7 @@ class MyApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.dark,
-      home: const SplashScreen(),
+      home: const FastSplashScreen(), // Use FastSplashScreen for faster startup
       debugShowCheckedModeBanner: false,
     );
   }

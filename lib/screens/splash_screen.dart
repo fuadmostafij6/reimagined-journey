@@ -39,7 +39,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _initializeAnimations() {
     _animationController = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1200), // Reduced from 2 seconds
       vsync: this,
     );
 
@@ -65,20 +65,39 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _checkForUpdates() async {
     try {
       setState(() {
-        _statusText = 'Checking for updates...';
+        _statusText = 'Loading...';
       });
 
-      // Get current app version
+      // Get current app version (fast operation)
       final packageInfo = await PackageInfo.fromPlatform();
       _currentVersion = packageInfo.version;
 
-      // Fetch latest release from GitHub
+      // Start update check in background with timeout
+      _checkForUpdatesInBackground();
+      
+      // Navigate to home after minimum splash time (1.5 seconds)
+      await Future.delayed(const Duration(milliseconds: 1500));
+      _navigateToHome();
+      
+    } catch (e) {
+      setState(() {
+        _statusText = 'Loading...';
+      });
+      await Future.delayed(const Duration(milliseconds: 1500));
+      _navigateToHome();
+    }
+  }
+
+  Future<void> _checkForUpdatesInBackground() async {
+    try {
+      // Fetch latest release from GitHub with timeout
       final response = await http.get(
         Uri.parse('https://api.github.com/repos/fuadmostafij6/reimagined-journey/releases/latest'),
-        // headers: {
-        //   'Authorization': 'Bearer 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',
-        //   'Accept': 'application/vnd.github+json',
-        // },
+      ).timeout(
+        const Duration(seconds: 5), // 5 second timeout
+        onTimeout: () {
+          throw Exception('Update check timeout');
+        },
       );
 
       if (response.statusCode == 200) {
@@ -88,42 +107,15 @@ class _SplashScreenState extends State<SplashScreen>
         // Debug: Print release info
         print('Latest release: ${_latestRelease!.tagName}');
         print('Download URL: ${_latestRelease!.browserDownloadUrl}');
-        print('Available assets: ${_latestRelease!.assets.map((a) => a.name).join(', ')}');
         
-        if (_latestRelease!.browserDownloadUrl.isEmpty) {
-          setState(() {
-            _statusText = 'No APK found in release ${_latestRelease!.tagName}';
-          });
-          await Future.delayed(const Duration(seconds: 3));
-          _navigateToHome();
-          return;
-        }
-        
-        setState(() {
-          _statusText = 'Update check complete';
-        });
-
-        // Compare versions
-        if (_isNewVersionAvailable()) {
-          await Future.delayed(const Duration(seconds: 1));
+        if (_latestRelease!.browserDownloadUrl.isNotEmpty && _isNewVersionAvailable()) {
+          // Show update dialog if new version is available
           _showUpdateDialog();
-        } else {
-          await Future.delayed(const Duration(seconds: 2));
-          _navigateToHome();
         }
-      } else {
-        setState(() {
-          _statusText = 'Failed to check updates: HTTP ${response.statusCode}';
-        });
-        await Future.delayed(const Duration(seconds: 2));
-        _navigateToHome();
       }
     } catch (e) {
-      setState(() {
-        _statusText = 'Error: $e';
-      });
-      await Future.delayed(const Duration(seconds: 2));
-      _navigateToHome();
+      print('Background update check failed: $e');
+      // Silently fail - don't block the app
     }
   }
 
@@ -139,9 +131,12 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _showUpdateDialog() {
+    // Only show dialog if we're still in the splash screen context
+    if (!mounted) return;
+    
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true, // Allow dismissing
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1F1B2E),
         shape: RoundedRectangleBorder(
@@ -253,7 +248,10 @@ class _SplashScreenState extends State<SplashScreen>
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              _navigateToHome();
+              // Don't navigate to home if we're already there
+              if (mounted) {
+                _navigateToHome();
+              }
             },
             child: Text(
               'Skip',
@@ -525,6 +523,8 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _navigateToHome() {
+    if (!mounted) return; // Prevent navigation if widget is disposed
+    
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => const LiveTvPage(),
