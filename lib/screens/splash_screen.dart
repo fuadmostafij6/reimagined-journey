@@ -64,6 +64,13 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _checkForUpdates() async {
     try {
+      // Skip update check on non-Android platforms (avoid desktop network/permission issues)
+      if (!Platform.isAndroid) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        _navigateToHome();
+        return;
+      }
+
       setState(() {
         _statusText = 'Loading...';
       });
@@ -90,6 +97,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _checkForUpdatesInBackground() async {
     try {
+      if (!Platform.isAndroid) return;
       // Fetch latest release from GitHub with timeout
       final response = await http.get(
         Uri.parse('https://api.github.com/repos/fuadmostafij6/reimagined-journey/releases/latest'),

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,8 +15,13 @@ void main() async {
   
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Allow runtime font fetching only on mobile; disable on desktop/web
+  GoogleFonts.config.allowRuntimeFetching = Platform.isAndroid || Platform.isIOS;
+  
   // Initialize Google Mobile Ads SDK in background to avoid blocking startup
-  _initializeAdsInBackground();
+  if (Platform.isAndroid || Platform.isIOS) {
+    _initializeAdsInBackground();
+  }
   
   runApp(const MyApp());
 }
@@ -38,11 +44,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseSeed = const Color(0xFF6750A4);
+    final isDesktop = Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
     final lightTheme = ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(seedColor: baseSeed, brightness: Brightness.light),
-      textTheme: GoogleFonts.notoSansTextTheme(),
+      textTheme: isDesktop ? null : GoogleFonts.notoSansTextTheme(),
       scaffoldBackgroundColor: const Color(0xFFF7F7FA),
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFF1F1B2E),
@@ -70,7 +77,7 @@ class MyApp extends StatelessWidget {
       colorScheme: darkScheme,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: Colors.black,
-      textTheme: GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
+      textTheme: isDesktop ? ThemeData.dark().textTheme : GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFF1F1B2E),
         foregroundColor: Colors.white,
@@ -117,7 +124,7 @@ class MyApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.dark,
-      home: const InstantSplashScreen(), // Use InstantSplashScreen for fastest startup
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
